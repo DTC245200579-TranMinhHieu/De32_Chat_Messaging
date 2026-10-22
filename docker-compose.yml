@@ -1,0 +1,134 @@
+version: '3.8'
+
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  grafana_data:
+
+services:
+  # 1. Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - frontend-net
+    depends_on:
+      - chat-app
+    restart: always
+
+  # 2. Application Chat
+  chat-app:
+    build: ./app
+    container_name: chat-app
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=chatuser
+      - POSTGRES_PASSWORD=StrongPassword123!
+      - POSTGRES_DB=chatdb
+    networks:
+      - frontend-net
+      - backend-net
+    depends_on:
+      - postgres
+    restart: always
+
+  # 3. Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: StrongPassword123!
+      POSTGRES_DB: chatdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+    restart: always
+
+  # 4. DB Management Tool
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: AdminPassword123!
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - frontend-net
+      - backend-net
+    restart: always
+
+  # 5. Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - backend-net
+    restart: always
+
+  # 6. Container Metrics Exporter
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - backend-net
+    restart: always
+
+  # 7. Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - backend-net
+    restart: always
+
+  # 8. Logging - Loki
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+      - backend-net
+    restart: always
+
+  # 9. Log Collector - Promtail
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+      - backend-net
+    restart: always
