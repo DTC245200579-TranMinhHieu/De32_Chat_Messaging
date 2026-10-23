@@ -7,9 +7,9 @@ Môn: Triển khai và Quản trị Hệ thống Phần mềm
    ```bash
    docker compose up -d --build
 
-Ứng dụng Chat: http://localhost
+Ứng dụng Chat: http://localhost:8080/
 
-pgAdmin (DB GUI): http://localhost/pgadmin
+pgAdmin (DB GUI): http://localhost:8080/pgadmin/
 
 Prometheus: http://localhost:9090
 
